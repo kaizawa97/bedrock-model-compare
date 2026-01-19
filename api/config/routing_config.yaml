@@ -1,0 +1,197 @@
+# Bedrock Auto Router - カスタマイズ可能なルーティング設定
+# ユーザーが自由に編集可能
+
+version: "1.0"
+
+# グローバル設定
+global:
+  default_region: us-east-1
+  default_max_tokens: 1000
+  default_temperature: 0.7
+  
+  # コスト制限
+  cost_limits:
+    per_request: 0.01  # 1リクエストあたりの最大コスト
+    per_day: 10.0      # 1日あたりの最大コスト
+  
+  # 品質基準
+  quality_thresholds:
+    minimum_score: 70   # 最低品質スコア
+    upgrade_threshold: 0.15  # 15%以上品質が上がるならアップグレード
+
+# タスク別のルーティング設定
+tasks:
+  simple_qa:
+    description: "簡単な質問応答（天気、定義など）"
+    primary_model: amazon.nova-micro-v1:0
+    fallback_model: amazon.nova-lite-v1:0
+    criteria:
+      max_cost: 0.0001
+      max_latency: 1.0
+      min_quality: 70
+    keywords:
+      - "what is"
+      - "who is"
+      - "when"
+      - "where"
+      - "何"
+      - "いつ"
+      - "どこ"
+  
+  code_generation:
+    description: "コード生成・実装"
+    primary_model: qwen.qwen3-coder-30b-a3b-v1:0
+    fallback_model: us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    criteria:
+      max_cost: 0.005
+      max_latency: 3.0
+      min_quality: 85
+    keywords:
+      - "code"
+      - "function"
+      - "implement"
+      - "class"
+      - "コード"
+      - "実装"
+      - "関数"
+  
+  reasoning:
+    description: "複雑な推論・分析"
+    primary_model: us.deepseek.r1-v1:0
+    fallback_model: us.anthropic.claude-opus-4-5-20251101-v1:0
+    criteria:
+      max_cost: 0.01
+      max_latency: 5.0
+      min_quality: 90
+    keywords:
+      - "analyze"
+      - "explain why"
+      - "reasoning"
+      - "proof"
+      - "分析"
+      - "理由"
+      - "推論"
+  
+  brainstorming:
+    description: "ブレインストーミング・アイデア出し"
+    primary_model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    fallback_model: us.anthropic.claude-opus-4-5-20251101-v1:0
+    criteria:
+      max_cost: 0.01
+      max_latency: 4.0
+      min_quality: 85
+    keywords:
+      - "brainstorm"
+      - "ideas"
+      - "suggestions"
+      - "improve"
+      - "アイデア"
+      - "提案"
+      - "改善"
+  
+  documentation:
+    description: "ドキュメント生成・説明"
+    primary_model: amazon.nova-lite-v1:0
+    fallback_model: amazon.nova-pro-v1:0
+    criteria:
+      max_cost: 0.001
+      max_latency: 2.0
+      min_quality: 75
+    keywords:
+      - "document"
+      - "readme"
+      - "explain"
+      - "ドキュメント"
+      - "説明"
+  
+  analysis:
+    description: "レビュー・評価・比較"
+    primary_model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    fallback_model: amazon.nova-pro-v1:0
+    criteria:
+      max_cost: 0.008
+      max_latency: 3.0
+      min_quality: 85
+    keywords:
+      - "review"
+      - "evaluate"
+      - "compare"
+      - "レビュー"
+      - "評価"
+      - "比較"
+  
+  general:
+    description: "一般的なタスク"
+    primary_model: amazon.nova-pro-v1:0
+    fallback_model: us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    criteria:
+      max_cost: 0.005
+      max_latency: 2.0
+      min_quality: 80
+
+# カスタムルール（ユーザーが追加可能）
+custom_rules:
+  - name: "large_context"
+    description: "5000トークン以上の大きなコンテキスト"
+    condition:
+      token_count: ">5000"
+    override_model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    priority: 100  # 高優先度
+  
+  - name: "budget_mode"
+    description: "コスト重視モード"
+    condition:
+      cost_limit: "<0.001"
+    override_model: amazon.nova-micro-v1:0
+    priority: 50
+  
+  - name: "quality_mode"
+    description: "品質重視モード"
+    condition:
+      quality_required: ">90"
+    override_model: us.anthropic.claude-opus-4-5-20251101-v1:0
+    priority: 50
+
+# モデル別の特性（実測データから更新）
+model_characteristics:
+  us.anthropic.claude-opus-4-5-20251101-v1:0:
+    quality_score: 95
+    avg_latency: 2.5
+    cost_per_1k: 0.015
+    best_for: ["reasoning", "brainstorming", "analysis"]
+  
+  us.anthropic.claude-sonnet-4-5-20250929-v1:0:
+    quality_score: 90
+    avg_latency: 1.5
+    cost_per_1k: 0.006
+    best_for: ["brainstorming", "analysis", "general"]
+  
+  us.deepseek.r1-v1:0:
+    quality_score: 88
+    avg_latency: 2.0
+    cost_per_1k: 0.0008
+    best_for: ["reasoning", "code_generation"]
+  
+  qwen.qwen3-coder-30b-a3b-v1:0:
+    quality_score: 92
+    avg_latency: 1.2
+    cost_per_1k: 0.0005
+    best_for: ["code_generation"]
+  
+  amazon.nova-pro-v1:0:
+    quality_score: 80
+    avg_latency: 1.0
+    cost_per_1k: 0.0008
+    best_for: ["general", "documentation"]
+  
+  amazon.nova-lite-v1:0:
+    quality_score: 75
+    avg_latency: 0.8
+    cost_per_1k: 0.00006
+    best_for: ["documentation", "simple_qa"]
+  
+  amazon.nova-micro-v1:0:
+    quality_score: 70
+    avg_latency: 0.3
+    cost_per_1k: 0.000035
+    best_for: ["simple_qa"]

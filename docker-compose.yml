@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  code-server:
+    build:
+      context: ./docker/code-server
+    ports:
+      - "8443:8080"
+    volumes:
+      - ./workspaces:/workspace
+      - code-server-data:/home/coder/.local/share/code-server
+    env_file:
+      - ./api/.env
+    environment:
+      - PASSWORD=${CODE_SERVER_PASSWORD:-password123}
+      # Claude Code Bedrock設定
+      - CLAUDE_CODE_USE_BEDROCK=true
+      - ANTHROPIC_BEDROCK_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
+    restart: unless-stopped
+
+volumes:
+  code-server-data:

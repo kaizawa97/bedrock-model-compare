@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bedrock Parallel Executor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 95%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .loading p {
+            margin-top: 10px;
+            font-size: 1.1em;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            text-align: center;
+        }
+
+        .summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .summary-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .result-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 20px;
+            align-items: start;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .result-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .result-item.error {
+            border-left-color: #e74c3c;
+        }
+
+        .result-item.pending {
+            border-left-color: #ffc107;
+            opacity: 0.7;
+        }
+
+        .result-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .result-content {
+            min-width: 0;
+        }
+
+        .model-name {
+            color: #667eea;
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .result-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .result-output {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.95em;
+            line-height: 1.6;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .model-checkbox {
+            display: block;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .model-checkbox:hover {
+            background: #f0f0f0;
+        }
+
+        .model-checkbox input {
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .model-checkbox label {
+            cursor: pointer;
+            margin: 0;
+            font-weight: normal;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .result-item.pending {
+            border-left-color: #ffc107;
+            opacity: 0.7;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        // 単一の結果を表示（待機中の要素を更新）
+        function displaySingleResult(result) {
+            const existingElement = document.getElementById(`result-${result.execution_id}`);
+            const statusClass = result.success ? 'status-success' : 'status-error';
+            const statusText = result.success ? '成功' : '失敗';
+            const itemClass = result.success ? '' : 'error';
+            
+            const model = allModels.find(m => m.id === result.model_id);
+            const modelName = model ? `${model.name}` : result.model_id;
+            const provider = model ? model.provider : '';
+
+            let costHtml = '';
+            if (result.success && result.cost) {
+                const cost = result.cost;
+                costHtml = `<div class="result-meta">💰 $${cost.total_cost.toFixed(6)} (${cost.input_tokens}→${cost.output_tokens} tokens)</div>`;
+            }
+
+            const resultHtml = `
+                <div class="result-content">
+                    <div class="result-output">${result.success ? result.output : result.error}</div>
+                </div>
+                <div class="result-info">
+                    <div class="model-name">${modelName}</div>
+                    <div class="result-meta">📦 ${provider}</div>
+                    <div class="result-meta">⏱️ ${result.elapsed_time.toFixed(2)}秒</div>
+                    ${costHtml}
+                    <div class="result-meta">
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                </div>
+            `;
+
+            if (existingElement) {
+                existingElement.className = `result-item ${itemClass}`;
+                existingElement.innerHTML = resultHtml;
+                existingElement.onclick = (e) => {
+                    e.stopPropagation();
+                    openModal(result);
+                };
+            } else {
+                const resultsList = document.getElementById('resultsList');
+                const newElement = document.createElement('div');
+                newElement.className = `result-item ${itemClass}`;
+                newElement.id = `result-${result.execution_id}`;
+                newElement.innerHTML = resultHtml;
+                newElement.onclick = (e) => {
+                    e.stopPropagation();
+                    openModal(result);
+                };
+                resultsList.appendChild(newElement);
+            }
+        }
+
+        // モーダルを開く
+        function openModal(result) {
+            console.log('モーダルを開く:', result);
+            const modal = document.getElementById('detailModal');
+            if (!modal) {
+                console.error('モーダル要素が見つかりません');
+                return;
+            }
+            
+            const model = allModels.find(m => m.id === result.model_id);
+            const modelName = model ? model.name : result.model_id;
+            const provider = model ? model.provider : '';
+
+            document.getElementById('modalTitle').textContent = modelName;
+            document.getElementById('modalModelName').textContent = modelName;
+            document.getElementById('modalProvider').textContent = provider;
+            document.getElementById('modalTime').textContent = `${result.elapsed_time.toFixed(2)}秒`;
+            document.getElementById('modalStatus').textContent = result.success ? '✅ 成功' : '❌ 失敗';
+            document.getElementById('modalStatus').style.color = result.success ? '#28a745' : '#dc3545';
+            document.getElementById('modalOutput').textContent = result.success ? result.output : result.error;
+            document.getElementById('modalModelId').textContent = result.model_id;
+
+            // コスト情報
+            const costSection = document.getElementById('modalCostSection');
+            if (result.success && result.cost) {
+                costSection.style.display = 'grid';
+                document.getElementById('modalInputTokens').textContent = result.cost.input_tokens;
+                document.getElementById('modalOutputTokens').textContent = result.cost.output_tokens;
+                document.getElementById('modalInputCost').textContent = `$${result.cost.input_cost.toFixed(6)}`;
+                document.getElementById('modalOutputCost').textContent = `$${result.cost.output_cost.toFixed(6)}`;
+                document.getElementById('modalTotalCost').textContent = `$${result.cost.total_cost.toFixed(6)} USD`;
+            } else {
+                costSection.style.display = 'none';
+            }
+
+            modal.style.display = 'block';
+            console.log('モーダルを表示しました');
+        }
+            document.getElementById('modalProvider').textContent = provider;
+            document.getElementById('modalTime').textContent = `${result.elapsed_time.toFixed(2)}秒`;
+            document.getElementById('modalStatus').textContent = result.success ? '✅ 成功' : '❌ 失敗';
+            document.getElementById('modalStatus').style.color = result.success ? '#28a745' : '#dc3545';
+            document.getElementById('modalOutput').textContent = result.success ? result.output : result.error;
+            document.getElementById('modalModelId').textContent = result.model_id;
+
+            // コスト情報
+            const costSection = document.getElementById('modalCostSection');
+            if (result.success && result.cost) {
+                costSection.style.display = 'grid';
+                document.getElementById('modalInputTokens').textContent = result.cost.input_tokens;
+                document.getElementById('modalOutputTokens').textContent = result.cost.output_tokens;
+                document.getElementById('modalInputCost').textContent = `$${result.cost.input_cost.toFixed(6)}`;
+                document.getElementById('modalOutputCost').textContent = `$${result.cost.output_cost.toFixed(6)}`;
+                document.getElementById('modalTotalCost').textContent = `$${result.cost.total_cost.toFixed(6)} USD`;
+            } else {
+                costSection.style.display = 'none';
+            }
+
+            modal.style.display = 'block';
+        }
+
+        // モーダルを閉じる
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+
+        // モーダル外をクリックしたら閉じる
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // ESCキーでモーダルを閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        /* モーダルスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 3% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+
+        .modal-close {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            text-align: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: calc(90vh - 100px);
+            overflow-y: auto;
+        }
+
+        .modal-section {
+            margin-bottom: 25px;
+        }
+
+        .modal-section h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .modal-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .modal-info-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .modal-info-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .modal-info-value {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .modal-output {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .result-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Bedrock Parallel Executor</h1>
+            <p>AWS Bedrockモデルを並列実行</p>
+        </div>
+
+        <div class="content">
+            <form id="executionForm">
+                <div class="form-group">
+                    <label for="modelSelect">モデル選択（複数選択可）</label>
+                    <div id="modelSelect" style="max-height: 300px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px;">
+                        <!-- モデルチェックボックスがここに動的に追加されます -->
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="button" onclick="selectAllModels()" style="width: auto; padding: 8px 16px; font-size: 14px; margin-right: 10px;">全選択</button>
+                        <button type="button" class="button" onclick="deselectAllModels()" style="width: auto; padding: 8px 16px; font-size: 14px; background: #6c757d;">全解除</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="prompt">プロンプト</label>
+                    <textarea id="prompt" required placeholder="実行したいプロンプトを入力してください..."></textarea>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label for="region">リージョン</label>
+                        <select id="region" required>
+                            <option value="">リージョンを選択...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxTokens">最大トークン数</label>
+                        <input type="number" id="maxTokens" value="1000" min="1" max="4096" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label for="temperature">Temperature</label>
+                        <input type="number" id="temperature" value="0.7" min="0" max="1" step="0.1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>選択中のモデル数</label>
+                        <input type="text" id="selectedCount" value="0" readonly style="background: #f8f9fa;">
+                    </div>
+                </div>
+
+                <button type="submit" class="button" id="submitBtn">実行</button>
+                <button type="button" class="button" id="cancelBtn" style="display: none; background: #dc3545; margin-top: 10px;">キャンセル</button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p id="loadingText">実行中...</p>
+            </div>
+
+            <div class="results" id="results">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">実行結果</h2>
+                    <div>
+                        <label for="sortBy" style="margin-right: 10px; font-weight: 600;">並び替え:</label>
+                        <select id="sortBy" style="padding: 8px; border-radius: 4px; border: 2px solid #e0e0e0;">
+                            <option value="default">実行順</option>
+                            <option value="time-asc">時間（速い順）</option>
+                            <option value="time-desc">時間（遅い順）</option>
+                            <option value="cost-asc">コスト（安い順）</option>
+                            <option value="cost-desc">コスト（高い順）</option>
+                            <option value="status">ステータス（成功→失敗）</option>
+                            <option value="provider">プロバイダー順</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="summary" id="summary"></div>
+                <div class="results-grid" id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">モデル詳細</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <div class="modal-info-grid">
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">モデル名</div>
+                            <div class="modal-info-value" id="modalModelName"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">プロバイダー</div>
+                            <div class="modal-info-value" id="modalProvider"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">実行時間</div>
+                            <div class="modal-info-value" id="modalTime"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">ステータス</div>
+                            <div class="modal-info-value" id="modalStatus"></div>
+                        </div>
+                    </div>
+                    <div class="modal-info-grid" id="modalCostSection" style="display: none;">
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">入力トークン</div>
+                            <div class="modal-info-value" id="modalInputTokens"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">出力トークン</div>
+                            <div class="modal-info-value" id="modalOutputTokens"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">入力コスト</div>
+                            <div class="modal-info-value" id="modalInputCost"></div>
+                        </div>
+                        <div class="modal-info-item">
+                            <div class="modal-info-label">出力コスト</div>
+                            <div class="modal-info-value" id="modalOutputCost"></div>
+                        </div>
+                        <div class="modal-info-item" style="grid-column: span 2;">
+                            <div class="modal-info-label">総コスト</div>
+                            <div class="modal-info-value" id="modalTotalCost" style="color: #28a745; font-size: 1.3em;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-section">
+                    <h3>レスポンス</h3>
+                    <div class="modal-output" id="modalOutput"></div>
+                </div>
+                <div class="modal-section">
+                    <h3>モデルID</h3>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.9em;" id="modalModelId"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allModels = [];
+        let currentReader = null;
+        let allResults = [];  // 全結果を保持
+
+        // モデルとリージョンを読み込み
+        async function loadOptions() {
+            try {
+                const [modelsRes, regionsRes] = await Promise.all([
+                    fetch('/api/models'),
+                    fetch('/api/regions')
+                ]);
+
+                const modelsData = await modelsRes.json();
+                const regionsData = await regionsRes.json();
+
+                allModels = modelsData.models;
+
+                // モデルチェックボックスを生成
+                const modelSelect = document.getElementById('modelSelect');
+                allModels.forEach(model => {
+                    const div = document.createElement('div');
+                    div.className = 'model-checkbox';
+                    div.innerHTML = `
+                        <input type="checkbox" id="model_${model.id}" value="${model.id}" onchange="updateSelectedCount()">
+                        <label for="model_${model.id}">${model.name} (${model.provider})</label>
+                    `;
+                    modelSelect.appendChild(div);
+                });
+
+                const regionSelect = document.getElementById('region');
+                regionsData.regions.forEach(region => {
+                    const option = document.createElement('option');
+                    option.value = region.id;
+                    option.textContent = region.name;
+                    regionSelect.appendChild(option);
+                });
+
+                // デフォルト選択
+                regionSelect.value = 'us-east-1';
+            } catch (error) {
+                console.error('オプション読み込みエラー:', error);
+            }
+        }
+
+        function selectAllModels() {
+            document.querySelectorAll('#modelSelect input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAllModels() {
+            document.querySelectorAll('#modelSelect input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('#modelSelect input[type="checkbox"]:checked').length;
+            document.getElementById('selectedCount').value = count;
+        }
+
+        // フォーム送信
+        document.getElementById('executionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const selectedModels = Array.from(
+                document.querySelectorAll('#modelSelect input[type="checkbox"]:checked')
+            ).map(cb => cb.value);
+
+            if (selectedModels.length === 0) {
+                alert('少なくとも1つのモデルを選択してください');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const loading = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+            const results = document.getElementById('results');
+            const resultsList = document.getElementById('resultsList');
+            const summary = document.getElementById('summary');
+
+            submitBtn.disabled = true;
+            cancelBtn.style.display = 'block';
+            loading.style.display = 'block';
+            loadingText.textContent = '実行中...';
+            results.style.display = 'block';
+            resultsList.innerHTML = '';
+            summary.innerHTML = '';
+
+            const requestData = {
+                model_ids: selectedModels,
+                prompt: document.getElementById('prompt').value,
+                region: document.getElementById('region').value,
+                max_tokens: parseInt(document.getElementById('maxTokens').value),
+                temperature: parseFloat(document.getElementById('temperature').value)
+            };
+
+            try {
+                // 全モデルを「待機中」として表示
+                selectedModels.forEach((modelId, index) => {
+                    displayPendingResult(modelId, index);
+                });
+
+                // Server-Sent Eventsでストリーミング受信
+                const response = await fetch('/api/execute-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('実行に失敗しました');
+                }
+
+                currentReader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                allResults = [];  // リセット
+                let cancelled = false;
+
+                // キャンセルボタンのハンドラー
+                const cancelHandler = () => {
+                    cancelled = true;
+                    if (currentReader) {
+                        currentReader.cancel();
+                        currentReader = null;
+                    }
+                    loadingText.textContent = 'キャンセルしました';
+                    setTimeout(() => {
+                        loading.style.display = 'none';
+                    }, 1000);
+                };
+                
+                cancelBtn.onclick = cancelHandler;
+
+                while (true) {
+                    const { done, value } = await currentReader.read();
+                    if (done || cancelled) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            
+                            if (data.type === 'start') {
+                                console.log('実行開始:', data.total, 'モデル');
+                                loadingText.textContent = `実行中... (0/${data.total})`;
+                            } else if (data.type === 'result') {
+                                allResults.push(data.data);
+                                displaySingleResult(data.data);
+                                updateSummary(allResults, selectedModels.length);
+                                loadingText.textContent = `実行中... (${allResults.length}/${selectedModels.length})`;
+                            } else if (data.type === 'complete') {
+                                console.log('実行完了');
+                                loadingText.textContent = '完了！';
+                            } else if (data.type === 'error') {
+                                alert('エラー: ' + data.message);
+                            }
+                        }
+                    }
+                }
+                
+                currentReader = null;
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    alert('エラー: ' + error.message);
+                }
+            } finally {
+                submitBtn.disabled = false;
+                cancelBtn.style.display = 'none';
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                }, 1000);
+            }
+        });
+
+        // 待機中の結果を表示
+        function displayPendingResult(modelId, executionId) {
+            const resultsList = document.getElementById('resultsList');
+            const model = allModels.find(m => m.id === modelId);
+            const modelName = model ? `${model.name}` : modelId;
+            const provider = model ? model.provider : '';
+
+            const div = document.createElement('div');
+            div.className = 'result-item pending';
+            div.id = `result-${executionId}`;
+            div.innerHTML = `
+                <div class="result-content">
+                    <div class="result-output">実行中...</div>
+                </div>
+                <div class="result-info">
+                    <div class="model-name">${modelName}</div>
+                    <div class="result-meta">📦 ${provider}</div>
+                    <div class="result-meta">
+                        <span class="status-badge status-pending">待機中</span>
+                    </div>
+                </div>
+            `;
+            
+            div.onclick = () => {
+                console.log('待機中のモデルがクリックされました');
+            };
+            
+            resultsList.appendChild(div);
+        }
+
+        // 単一の結果を表示（待機中の要素を更新）
+        function displaySingleResult(result) {
+            const resultsList = document.getElementById('resultsList');
+            const existingElement = document.getElementById(`result-${result.execution_id}`);
+            const statusClass = result.success ? 'status-success' : 'status-error';
+            const statusText = result.success ? '成功' : '失敗';
+            const itemClass = result.success ? '' : 'error';
+            
+            const model = allModels.find(m => m.id === result.model_id);
+            const modelName = model ? `${model.name}` : result.model_id;
+            const provider = model ? model.provider : '';
+
+            let costHtml = '';
+            if (result.success && result.cost) {
+                const cost = result.cost;
+                costHtml = `
+                    <div class="cost-info">
+                        💰 $${cost.total_cost.toFixed(6)}
+                        <span style="color: #999;">(${cost.input_tokens}→${cost.output_tokens})</span>
+                    </div>
+                `;
+            }
+
+            const resultHtml = `
+                <div class="result-header">
+                    <div class="model-name">${modelName}</div>
+                </div>
+                <div class="result-meta">
+                    <span style="font-size: 0.75em; color: #999;">${provider}</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div style="font-size: 0.75em; color: #999; margin-bottom: 5px;">
+                    ⏱️ ${result.elapsed_time.toFixed(2)}秒
+                </div>
+                ${costHtml}
+                <div class="result-output">
+                    ${result.success ? result.output : result.error}
+                </div>
+            `;
+
+            if (existingElement) {
+                existingElement.className = `result-item ${itemClass}`;
+                existingElement.innerHTML = resultHtml;
+            } else {
+                const newElement = document.createElement('div');
+                newElement.className = `result-item ${itemClass}`;
+                newElement.id = `result-${result.execution_id}`;
+                newElement.innerHTML = resultHtml;
+                resultsList.appendChild(newElement);
+            }
+        }
+
+        // サマリーを更新
+        function updateSummary(results, total) {
+            const summary = document.getElementById('summary');
+            const successCount = results.filter(r => r.success).length;
+            const failedCount = results.filter(r => !r.success).length;
+            const avgTime = results.length > 0 
+                ? results.reduce((sum, r) => sum + r.elapsed_time, 0) / results.length 
+                : 0;
+            const totalCost = results
+                .filter(r => r.success && r.cost)
+                .reduce((sum, r) => sum + r.cost.total_cost, 0);
+
+            summary.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-value">${results.length}/${total}</div>
+                        <div class="summary-label">完了/総数</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${successCount}</div>
+                        <div class="summary-label">成功</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${failedCount}</div>
+                        <div class="summary-label">失敗</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${avgTime.toFixed(2)}s</div>
+                        <div class="summary-label">平均時間</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">$${totalCost.toFixed(6)}</div>
+                        <div class="summary-label">総コスト (USD)</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 結果を表示
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            const summary = document.getElementById('summary');
+            const resultsList = document.getElementById('resultsList');
+
+            // 総コストを計算
+            const totalCost = data.results
+                .filter(r => r.success && r.cost)
+                .reduce((sum, r) => sum + r.cost.total_cost, 0);
+
+            // サマリー表示
+            summary.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-value">${data.summary.total}</div>
+                        <div class="summary-label">実行モデル数</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.summary.success}</div>
+                        <div class="summary-label">成功</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.summary.failed}</div>
+                        <div class="summary-label">失敗</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.summary.average_time}s</div>
+                        <div class="summary-label">平均時間</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">$${totalCost.toFixed(6)}</div>
+                        <div class="summary-label">総コスト (USD)</div>
+                    </div>
+                </div>
+            `;
+
+            // 結果リスト表示
+            resultsList.innerHTML = data.results.map(result => {
+                const statusClass = result.success ? 'status-success' : 'status-error';
+                const statusText = result.success ? '成功' : '失敗';
+                const itemClass = result.success ? '' : 'error';
+                
+                // モデル名を取得
+                const model = allModels.find(m => m.id === result.model_id);
+                const modelName = model ? `${model.name} (${model.provider})` : result.model_id;
+
+                // コスト情報
+                let costHtml = '';
+                if (result.success && result.cost) {
+                    const cost = result.cost;
+                    costHtml = `
+                        <div class="cost-info">
+                            💰 コスト: <span class="cost-highlight">$${cost.total_cost.toFixed(6)}</span>
+                            (入力: ${cost.input_tokens} tokens / 出力: ${cost.output_tokens} tokens)
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="result-item ${itemClass}">
+                        <div class="result-header">
+                            <span>
+                                <div class="model-name">${modelName}</div>
+                            </span>
+                            <span>
+                                <span class="status-badge ${statusClass}">${statusText}</span>
+                                ${result.elapsed_time.toFixed(2)}秒
+                            </span>
+                        </div>
+                        ${costHtml}
+                        <div class="result-output">
+                            ${result.success ? result.output : result.error}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            results.style.display = 'block';
+        }
+
+        // ソート機能
+        document.getElementById('sortBy').addEventListener('change', (e) => {
+            sortAndDisplayResults(e.target.value);
+        });
+
+        function sortAndDisplayResults(sortBy) {
+            const resultsList = document.getElementById('resultsList');
+            let sortedResults = [...allResults];
+
+            switch(sortBy) {
+                case 'time-asc':
+                    sortedResults.sort((a, b) => a.elapsed_time - b.elapsed_time);
+                    break;
+                case 'time-desc':
+                    sortedResults.sort((a, b) => b.elapsed_time - a.elapsed_time);
+                    break;
+                case 'cost-asc':
+                    sortedResults.sort((a, b) => {
+                        const costA = a.cost?.total_cost || 0;
+                        const costB = b.cost?.total_cost || 0;
+                        return costA - costB;
+                    });
+                    break;
+                case 'cost-desc':
+                    sortedResults.sort((a, b) => {
+                        const costA = a.cost?.total_cost || 0;
+                        const costB = b.cost?.total_cost || 0;
+                        return costB - costA;
+                    });
+                    break;
+                case 'status':
+                    sortedResults.sort((a, b) => {
+                        if (a.success === b.success) return 0;
+                        return a.success ? -1 : 1;
+                    });
+                    break;
+                case 'provider':
+                    sortedResults.sort((a, b) => {
+                        const modelA = allModels.find(m => m.id === a.model_id);
+                        const modelB = allModels.find(m => m.id === b.model_id);
+                        const providerA = modelA?.provider || '';
+                        const providerB = modelB?.provider || '';
+                        return providerA.localeCompare(providerB);
+                    });
+                    break;
+                default:
+                    sortedResults.sort((a, b) => a.execution_id - b.execution_id);
+            }
+
+            // 結果を再描画
+            resultsList.innerHTML = '';
+            sortedResults.forEach(result => {
+                const statusClass = result.success ? 'status-success' : 'status-error';
+                const statusText = result.success ? '成功' : '失敗';
+                const itemClass = result.success ? '' : 'error';
+                
+                const model = allModels.find(m => m.id === result.model_id);
+                const modelName = model ? `${model.name}` : result.model_id;
+                const provider = model ? model.provider : '';
+
+                let costHtml = '';
+                if (result.success && result.cost) {
+                    const cost = result.cost;
+                    costHtml = `
+                        <div class="cost-info">
+                            💰 $${cost.total_cost.toFixed(6)}
+                            <span style="color: #999;">(${cost.input_tokens}→${cost.output_tokens})</span>
+                        </div>
+                    `;
+                }
+
+                const div = document.createElement('div');
+                div.className = `result-item ${itemClass}`;
+                div.id = `result-${result.execution_id}`;
+                div.innerHTML = `
+                    <div class="result-header">
+                        <div class="model-name">${modelName}</div>
+                    </div>
+                    <div class="result-meta">
+                        <span style="font-size: 0.75em; color: #999;">${provider}</span>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div style="font-size: 0.75em; color: #999; margin-bottom: 5px;">
+                        ⏱️ ${result.elapsed_time.toFixed(2)}秒
+                    </div>
+                    ${costHtml}
+                    <div class="result-output">
+                        ${result.success ? result.output : result.error}
+                    </div>
+                `;
+                div.onclick = (e) => {
+                    e.stopPropagation();
+                    openModal(result);
+                };
+                resultsList.appendChild(div);
+            });
+        }
+
+        // 初期化
+        loadOptions();
+    </script>
+</body>
+</html>
